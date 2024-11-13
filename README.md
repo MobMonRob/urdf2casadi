@@ -1,5 +1,5 @@
 # URDF2CASADI
-A module for generating the forward kinematics of a robot from a URDF. It can generate the forward kinematics represented as a dual quaternion or a transformation matrix. `urdf2casadi` works both in python 2 and 3, and any platform that supports `CasADi` and `urdf_parser_py`.
+A module for generating the forward kinematics and dynamics of a robot from a URDF. It can generate the forward kinematics represented as a dual quaternion or a transformation matrix. `urdf2casadi` works in python 3, and any platform that supports `CasADi` and `urdf_parser_py`.
 
 ## Other libraries
 This module is implemented in Python, and was intended to explore a CasADi approach to forward kinematics and rigid body dynamics algorithms based on URDFs. For a more real-time control applicable alternative, consider the [Pinocchio](https://github.com/stack-of-tasks/pinocchio) library.
@@ -8,12 +8,12 @@ This module is implemented in Python, and was intended to explore a CasADi appro
 With ROS:
 1. [Get ROS](http://www.ros.org/install/) (actually anything that installs `urdfdom_py`/`urdf_parser_py` will do).
 2. [Get CasADi](https://github.com/casadi/casadi/wiki/InstallationInstructions) (e.g. `pip install casadi`).
-3. Run `pip install --user .` in the folder.
+3. Run `pip install .` in the folder.
 
 Without ROS:
 1. Change the `urdfdom-py` to `urdf-parser-py` in `requirements.txt` (line 3) and in `setup.py` (line 20).
 2. [Get CasADi](https://github.com/casadi/casadi/wiki/InstallationInstructions) (e.g. `pip install casadi`).
-3.  Run `pip install --user .` in the folder (`--user` specifies that it is a local install).
+3.  Run `pip install .` in the folder (with additional option `--user` you can specify that it is a local install).
 
 Install with poetry:
 1. `git clone urdf2casadi`
