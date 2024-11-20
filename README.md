@@ -4,6 +4,9 @@ A module for generating the forward kinematics and dynamics of a robot from a UR
 ## Other libraries
 This module is implemented in Python, and was intended to explore a CasADi approach to forward kinematics and rigid body dynamics algorithms based on URDFs. For a more real-time control applicable alternative, consider the [Pinocchio](https://github.com/stack-of-tasks/pinocchio) library.
 
+## Differences to the original codebase
+- function to get inertia data added
+  
 ## Installation
 With ROS:
 1. [Get ROS](http://www.ros.org/install/) (actually anything that installs `urdfdom_py`/`urdf_parser_py` will do).
