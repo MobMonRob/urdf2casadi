@@ -143,6 +143,7 @@ class URDFparser(object):
 
         return n_actuated
 
+
     def _model_calculation(self, root, tip, q):
         """Calculates and returns model information needed in the
         dynamics algorithms caluculations, i.e transforms, joint space
@@ -245,6 +246,108 @@ class URDFparser(object):
 
         return i_X_p, Sis, spatial_inertias
 
+
+# neu
+    def get_inertias(self, root, tip):
+        """Calculates and returns model inertias"""
+        if self.robot_desc is None:
+            raise ValueError('Robot description not loaded from urdf')
+
+        chain = self.robot_desc.get_chain(root, tip)
+        spatial_inertias = []
+        # i_X_0 = []
+        # i_X_p = []
+        # Sis = []
+        prev_joint = None
+        n_actuated = 0
+        i = 0
+
+        for item in chain:
+            if item in self.robot_desc.joint_map:
+                joint = self.robot_desc.joint_map[item]
+
+                if joint.type == "fixed":
+                    if prev_joint == "fixed":
+                        XT_prev = cs.mtimes(
+                            plucker.XT(joint.origin.xyz, joint.origin.rpy),
+                            XT_prev)
+                    else:
+                        XT_prev = plucker.XT(
+                            joint.origin.xyz,
+                            joint.origin.rpy)
+                    inertia_transform = XT_prev
+                    prev_inertia = spatial_inertia
+
+                elif joint.type == "prismatic":
+                    if n_actuated != 0:
+                        spatial_inertias.append(spatial_inertia)
+                    n_actuated += 1
+                    # XJT = plucker.XJT_prismatic(
+                    #    joint.origin.xyz,
+                    #    joint.origin.rpy,
+                    #    joint.axis, q[i])
+                    # if prev_joint == "fixed":
+                    #    XJT = cs.mtimes(XJT, XT_prev)
+                    # Si = cs.SX([0, 0, 0,
+                    #            joint.axis[0],
+                    #            joint.axis[1],
+                    #            joint.axis[2]])
+                    # i_X_p.append(XJT)
+                    # Sis.append(Si)
+                    i += 1
+
+                elif joint.type in ["revolute", "continuous"]:
+                    if n_actuated != 0:
+                        spatial_inertias.append(spatial_inertia)
+                    n_actuated += 1
+
+                    # XJT = plucker.XJT_revolute(
+                    #    joint.origin.xyz,
+                    #    joint.origin.rpy,
+                    #    joint.axis,
+                    #    q[i])
+                    # if prev_joint == "fixed":
+                    #    XJT = cs.mtimes(XJT, XT_prev)
+                    # Si = cs.SX([
+                    #            joint.axis[0],
+                    #            joint.axis[1],
+                    #            joint.axis[2],
+                    #            0,
+                    #            0,
+                    #            0])
+                    # i_X_p.append(XJT)
+                    # Sis.append(Si)
+                    i += 1
+
+                prev_joint = joint.type
+
+            if item in self.robot_desc.link_map:
+                link = self.robot_desc.link_map[item]
+
+                if link.inertial is None:
+                    spatial_inertia = np.zeros((6, 6))
+                else:
+                    I = link.inertial.inertia
+                    spatial_inertia = plucker.spatial_inertia_matrix_IO(
+                        I.ixx,
+                        I.ixy,
+                        I.ixz,
+                        I.iyy,
+                        I.iyz,
+                        I.izz,
+                        link.inertial.mass,
+                        link.inertial.origin.xyz)
+
+                if prev_joint == "fixed":
+                    spatial_inertia = prev_inertia + cs.mtimes(
+                        inertia_transform.T,
+                        cs.mtimes(spatial_inertia, inertia_transform))
+
+                if link.name == tip:
+                    spatial_inertias.append(spatial_inertia)
+
+        return spatial_inertias
+    
     def _apply_external_forces(self, external_f, f, i_X_p):
         """Internal function for applying external forces in dynamics
         algorithms calculations."""
@@ -416,18 +519,18 @@ class URDFparser(object):
                 else:
                     a.append(cs.SX([0., 0., 0., 0., 0., 0.]))
             else:
-                v.append(cs.mtimes(i_X_p[i], v[i-1]) + vJ)
-                a.append(cs.mtimes(i_X_p[i], a[i-1]) + cs.mtimes(plucker.motion_cross_product(v[i]),vJ))
+                v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
+                a.append(cs.mtimes(i_X_p[i], a[i - 1]) + cs.mtimes(plucker.motion_cross_product(v[i]),vJ))
 
             f.append(cs.mtimes(Ic[i], a[i]) + cs.mtimes(plucker.force_cross_product(v[i]), cs.mtimes(Ic[i], v[i])))
 
         if f_ext is not None:
             f = self._apply_external_forces(f_ext, f, i_X_0)
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             C[i] = cs.mtimes(Si[i].T, f[i])
             if i != 0:
-                f[i-1] = f[i-1] + cs.mtimes(i_X_p[i].T, f[i])
+                f[i - 1] = f[i - 1] + cs.mtimes(i_X_p[i].T, f[i])
 
         return C
 
