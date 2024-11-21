@@ -9,6 +9,9 @@ This module is implemented in Python, and was intended to explore a CasADi appro
 - add [patch](https://github.com/wly2014/urdf2casadi/tree/patch_jacobian) to get Jacobian
 - refactoring
 - update dependencies to newer versions
+
+## Caveats
+- maybe non-diagonal inertial values are not correctly handled
   
 ## Installation
 With ROS:
