@@ -56,7 +56,7 @@ print("\n q min:", q_min)
 
 M_sym = ur5.get_inertia_matrix_crba(root, tip)
 C_sym = ur5.get_coriolis_rnea(root, tip)
-
+J_sym = ur5.get_jacobian(root, tip)  # neu
 gravity = [0, 0, -9.81]
 G_sym = ur5.get_gravity_rnea(root, tip, gravity)
 
@@ -66,22 +66,23 @@ G_sym = ur5.get_gravity_rnea(root, tip, gravity)
 # In[5]:
 
 
-q = [None]*n_joints
-q_dot = [None]*n_joints
+q = [None] * n_joints
+q_dot = [None] * n_joints
 for i in range(n_joints):
-    #to make sure the inputs are within the robot's limits:
-    q[i] = (q_max[i] - q_min[i])*np.random.rand()-(q_max[i] - q_min[i])/2
-    q_dot[i] = (q_max[i] - q_min[i])*np.random.rand()-(q_max[i] - q_min[i])/2
-    
+    # to make sure the inputs are within the robot's limits:
+    q[i] = (q_max[i] - q_min[i]) * np.random.rand() - (q_max[i] - q_min[i]) / 2
+    q_dot[i] = (q_max[i] - q_min[i]) * np.random.rand() - (q_max[i] - q_min[i]) / 2
+
 M_num = M_sym(q)
 C_num = C_sym(q, q_dot)
 G_num = G_sym(q)
+J_num = J_sym(q)  # neu
 print("Numerical Inertia Matrx for random input: \n", M_num)
-print("\nNumerical Coriolis term for random input: \n", C_num) 
+print("\nNumerical Coriolis term for random input: \n", C_num)
 print("\nNumerical gravity term for random input: \n", G_num)
+print("\nNumerical Jacobian for random input: \n", J_num)  # neu
 
-
-# ## Inverse Dynamics 
+# ## Inverse Dynamics
 # 
 # Without accounting for gravitational forces:
 
