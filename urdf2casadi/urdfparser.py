@@ -128,7 +128,6 @@ class URDFparser(object):
         Fd = np.diag(damping)
         return Fv, Fd
 
-
     def get_n_joints(self, root, tip):
         """Returns number of actuated joints."""
 
@@ -140,9 +139,7 @@ class URDFparser(object):
                 joint = self.robot_desc.joint_map[item]
                 if joint.type in self.actuated_types:
                     n_actuated += 1
-
         return n_actuated
-
 
     def _model_calculation(self, root, tip, q):
         """Calculates and returns model information needed in the
@@ -153,7 +150,7 @@ class URDFparser(object):
 
         chain = self.robot_desc.get_chain(root, tip)
         spatial_inertias = []
-        i_X_0 = []
+        # i_X_0 = []
         i_X_p = []
         Sis = []
         prev_joint = None
@@ -225,14 +222,14 @@ class URDFparser(object):
                 if link.inertial is None:
                     spatial_inertia = np.zeros((6, 6))
                 else:
-                    I = link.inertial.inertia
+                    inert = link.inertial.inertia
                     spatial_inertia = plucker.spatial_inertia_matrix_IO(
-                        I.ixx,
-                        I.ixy,
-                        I.ixz,
-                        I.iyy,
-                        I.iyz,
-                        I.izz,
+                        inert.ixx,
+                        inert.ixy,
+                        inert.ixz,
+                        inert.iyy,
+                        inert.iyz,
+                        inert.izz,
                         link.inertial.mass,
                         link.inertial.origin.xyz)
 
@@ -246,8 +243,6 @@ class URDFparser(object):
 
         return i_X_p, Sis, spatial_inertias
 
-
-# neu
     def get_inertias(self, root, tip):
         """Calculates and returns model inertias"""
         if self.robot_desc is None:
@@ -327,14 +322,14 @@ class URDFparser(object):
                 if link.inertial is None:
                     spatial_inertia = np.zeros((6, 6))
                 else:
-                    I = link.inertial.inertia
+                    inert = link.inertial.inertia
                     spatial_inertia = plucker.spatial_inertia_matrix_IO(
-                        I.ixx,
-                        I.ixy,
-                        I.ixz,
-                        I.iyy,
-                        I.iyz,
-                        I.izz,
+                        inert.ixx,
+                        inert.ixy,
+                        inert.ixz,
+                        inert.iyy,
+                        inert.iyz,
+                        inert.izz,
                         link.inertial.mass,
                         link.inertial.origin.xyz)
 
@@ -347,7 +342,7 @@ class URDFparser(object):
                     spatial_inertias.append(spatial_inertia)
 
         return spatial_inertias
-    
+
     def _apply_external_forces(self, external_f, f, i_X_p):
         """Internal function for applying external forces in dynamics
         algorithms calculations."""
@@ -388,9 +383,9 @@ class URDFparser(object):
                 else:
                     a.append(cs.mtimes(Si[i], q_ddot[i]))
             else:
-                v.append(cs.mtimes(i_X_p[i], v[i-1]) + vJ)
+                v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
                 a.append(
-                    cs.mtimes(i_X_p[i], a[i-1])
+                    cs.mtimes(i_X_p[i], a[i - 1])
                     + cs.mtimes(Si[i], q_ddot[i])
                     + cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
 
@@ -403,10 +398,10 @@ class URDFparser(object):
         if f_ext is not None:
             f = self._apply_external_forces(f_ext, f, i_X_p)
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             tau[i] = cs.mtimes(Si[i].T, f[i])
             if i != 0:
-                f[i-1] = f[i-1] + cs.mtimes(i_X_p[i].T, f[i])
+                f[i - 1] = f[i - 1] + cs.mtimes(i_X_p[i].T, f[i])
 
         tau = cs.Function("C", [q, q_dot, q_ddot], [tau], self.func_opts)
         return tau
@@ -421,7 +416,7 @@ class URDFparser(object):
         q = cs.SX.sym("q", n_joints)
         i_X_p, Si, Ic = self._model_calculation(root, tip, q)
 
-        v = []
+        # v = []
         a = []
         ag = cs.SX([0., 0., 0., gravity[0], gravity[1], gravity[2]])
         f = []
@@ -431,13 +426,13 @@ class URDFparser(object):
             if i == 0:
                 a.append(cs.mtimes(i_X_p[i], -ag))
             else:
-                a.append(cs.mtimes(i_X_p[i], a[i-1]))
+                a.append(cs.mtimes(i_X_p[i], a[i - 1]))
             f.append(cs.mtimes(Ic[i], a[i]))
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             tau[i] = cs.mtimes(Si[i].T, f[i])
             if i != 0:
-                f[i-1] = f[i-1] + cs.mtimes(i_X_p[i].T, f[i])
+                f[i - 1] = f[i - 1] + cs.mtimes(i_X_p[i].T, f[i])
 
         tau = cs.Function("C", [q], [tau],
                           self.func_opts)
@@ -446,14 +441,14 @@ class URDFparser(object):
     def _get_M(self, Ic, i_X_p, Si, n_joints, q):
         """Internal function for calculating the inertia matrix."""
         M = cs.SX.zeros(n_joints, n_joints)
-        Ic_composite = [None]*len(Ic)
+        Ic_composite = [None] * len(Ic)
 
         for i in range(0, n_joints):
             Ic_composite[i] = Ic[i]
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             if i != 0:
-                Ic_composite[i-1] = (Ic[i-1]
+                Ic_composite[i - 1] = (Ic[i - 1]
                   + cs.mtimes(i_X_p[i].T,
                               cs.mtimes(Ic_composite[i], i_X_p[i])))
 
@@ -478,14 +473,14 @@ class URDFparser(object):
         q = cs.SX.sym("q", n_joints)
         i_X_p, Si, Ic = self._model_calculation(root, tip, q)
         M = cs.SX.zeros(n_joints, n_joints)
-        Ic_composite = [None]*len(Ic)
+        Ic_composite = [None] * len(Ic)
 
         for i in range(0, n_joints):
             Ic_composite[i] = Ic[i]
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             if i != 0:
-                Ic_composite[i-1] = Ic[i-1] + cs.mtimes(i_X_p[i].T, cs.mtimes(Ic_composite[i], i_X_p[i]))
+                Ic_composite[i - 1] = Ic[i - 1] + cs.mtimes(i_X_p[i].T, cs.mtimes(Ic_composite[i], i_X_p[i]))
 
         for i in range(0, n_joints):
             fh = cs.mtimes(Ic_composite[i], Si[i])
@@ -520,9 +515,10 @@ class URDFparser(object):
                     a.append(cs.SX([0., 0., 0., 0., 0., 0.]))
             else:
                 v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
-                a.append(cs.mtimes(i_X_p[i], a[i - 1]) + cs.mtimes(plucker.motion_cross_product(v[i]),vJ))
+                a.append(cs.mtimes(i_X_p[i], a[i - 1]) + cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
 
-            f.append(cs.mtimes(Ic[i], a[i]) + cs.mtimes(plucker.force_cross_product(v[i]), cs.mtimes(Ic[i], v[i])))
+            f.append(cs.mtimes(Ic[i], a[i]) + 
+                cs.mtimes(plucker.force_cross_product(v[i]), cs.mtimes(Ic[i], v[i])))
 
         if f_ext is not None:
             f = self._apply_external_forces(f_ext, f, i_X_0)
@@ -565,10 +561,10 @@ class URDFparser(object):
         if f_ext is not None:
             f = self._apply_external_forces(f_ext, f, i_X_0)
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             tau[i] = cs.mtimes(Si[i].T, f[i])
             if i != 0:
-                f[i-1] = f[i-1] + cs.mtimes(i_X_p[i].T, f[i])
+                f[i - 1] = f[i - 1] + cs.mtimes(i_X_p[i].T, f[i])
 
         C = cs.Function("C", [q, q_dot], [tau], self.func_opts)
         return C
@@ -618,9 +614,9 @@ class URDFparser(object):
         pA = []
         IA = []
 
-        u = [None]*n_joints
-        U = [None]*n_joints
-        d = [None]*n_joints
+        u = [None] * n_joints
+        U = [None] * n_joints
+        d = [None] * n_joints
 
         for i in range(0, n_joints):
             vJ = cs.mtimes(Si[i], q_dot[i])
@@ -628,7 +624,7 @@ class URDFparser(object):
                 v.append(vJ)
                 c.append([0, 0, 0, 0, 0, 0])
             else:
-                v.append(cs.mtimes(i_X_p[i], v[i-1]) + vJ)
+                v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
                 c.append(cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
             IA.append(Ic[i])
             pA.append(cs.mtimes(plucker.force_cross_product(v[i]),
@@ -637,15 +633,15 @@ class URDFparser(object):
         if f_ext is not None:
             pA = self._apply_external_forces(f_ext, pA)
 
-        for i in range(n_joints-1, -1, -1):
+        for i in range(n_joints - 1, -1, -1):
             U[i] = cs.mtimes(IA[i], Si[i])
             d[i] = cs.mtimes(Si[i].T, U[i])
             u[i] = tau[i] - cs.mtimes(Si[i].T, pA[i])
             if i != 0:
-                Ia = IA[i] - ((cs.mtimes(U[i], U[i].T)/d[i]))
-                pa = pA[i] + cs.mtimes(Ia, c[i]) + (cs.mtimes(U[i], u[i])/d[i])
-                IA[i-1] += cs.mtimes(i_X_p[i].T, cs.mtimes(Ia, i_X_p[i]))
-                pA[i-1] += cs.mtimes(i_X_p[i].T, pa)
+                Ia = IA[i] - ((cs.mtimes(U[i], U[i].T) / d[i]))
+                pa = pA[i] + cs.mtimes(Ia, c[i]) + (cs.mtimes(U[i], u[i]) / d[i])
+                IA[i - 1] += cs.mtimes(i_X_p[i].T, cs.mtimes(Ia, i_X_p[i]))
+                pA[i - 1] += cs.mtimes(i_X_p[i].T, pa)
 
         a = []
         for i in range(0, n_joints):
@@ -661,8 +657,8 @@ class URDFparser(object):
                 else:
                     a_temp = c[i]
             else:
-                a_temp = (cs.mtimes(i_X_p[i], a[i-1]) + c[i])
-            q_ddot[i] = (u[i] - cs.mtimes(U[i].T, a_temp))/d[i]
+                a_temp = (cs.mtimes(i_X_p[i], a[i - 1]) + c[i])
+            q_ddot[i] = (u[i] - cs.mtimes(U[i].T, a_temp)) / d[i]
             a.append(a_temp + cs.mtimes(Si[i], q_ddot[i]))
 
         q_ddot = cs.Function("q_ddot", [q, q_dot, tau],
@@ -692,8 +688,8 @@ class URDFparser(object):
                     rpy = joint.origin.rpy
                 else:
                     # origin tag not given -> assume zero
-                    xyz = [0.0]*3
-                    rpy = [0.0]*3
+                    xyz = [0.0] * 3
+                    rpy = [0.0] * 3
                 joint_frame = T.numpy_rpy(xyz, *rpy)
                 joint_quaternion = quaternion.numpy_rpy(*rpy)
                 joint_dual_quat = dual_quaternion.numpy_prismatic(
@@ -736,7 +732,7 @@ class URDFparser(object):
                     axis = cs.np.array([1., 0., 0.])
                 else:
                     axis = cs.np.array(joint.axis)
-                axis = (1./cs.np.linalg.norm(axis))*axis
+                axis = (1. / cs.np.linalg.norm(axis)) * axis
                 joint_frame = T.revolute(
                     joint.origin.xyz,
                     joint.origin.rpy,
