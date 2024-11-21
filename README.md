@@ -6,6 +6,7 @@ This module is implemented in Python, and was intended to explore a CasADi appro
 
 ## Differences to the original codebase
 - function to get inertia data added
+- add [patch](https://github.com/wly2014/urdf2casadi/tree/patch_jacobian) to get Jacobian 
   
 ## Installation
 With ROS:
