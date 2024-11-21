@@ -345,8 +345,13 @@ class URDFparser(object):
         return spatial_inertias
 
     def _apply_external_forces(self, external_f, f, i_X_p):
-        """Internal function for applying external forces in dynamics
-        algorithms calculations."""
+        """
+        Internal function for applying external forces in dynamics
+        algorithms calculations.
+
+        :param external_f: external force
+        :param f: result force array 
+        """
         for i in range(0, len(f)):
             f[i] -= cs.mtimes(i_X_p[i].T, external_f[i])
         return f
