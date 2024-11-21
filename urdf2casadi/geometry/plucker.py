@@ -10,11 +10,11 @@ def numpy_skew_symmetric(v):
                      [-v[1], v[0], 0]])
 
 
-def inertia_matrix(I):
+def inertia_matrix(inert):
     """Returns the 3x3 rotational inertia matrix given the inertia vector."""
-    return np.array([I[0], I[1], I[2]],
-                    [I[1], I[3], I[4]],
-                    [I[2], I[4], I[5]])
+    return np.array([inert[0], inert[1], inert[2]],
+                    [inert[1], inert[3], inert[4]],
+                    [inert[2], inert[4], inert[5]])
 
 
 def motion_cross_product(v):

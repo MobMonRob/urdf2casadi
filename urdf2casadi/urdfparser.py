@@ -1,4 +1,4 @@
-"""This module contains a class for turning a chain in a URDF to a
+"""This module contains a class for turning a chain in an URDF file to a
 casadi function.
 """
 import casadi as cs
@@ -79,7 +79,6 @@ class URDFparser(object):
 
     def get_dynamics_limits(self, root, tip):
         """Using an URDF to extract joint max effort and velocity"""
-
         chain = self.robot_desc.get_chain(root, tip)
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
@@ -104,7 +103,6 @@ class URDFparser(object):
 
     def get_friction_matrices(self, root, tip):
         """Using an URDF to extract joint frictions and dampings"""
-
         chain = self.robot_desc.get_chain(root, tip)
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
@@ -130,7 +128,6 @@ class URDFparser(object):
 
     def get_n_joints(self, root, tip):
         """Returns number of actuated joints."""
-
         chain = self.robot_desc.get_chain(root, tip)
         n_actuated = 0
 
@@ -143,7 +140,7 @@ class URDFparser(object):
 
     def _model_calculation(self, root, tip, q):
         """Calculates and returns model information needed in the
-        dynamics algorithms caluculations, i.e transforms, joint space
+        dynamics algorithms calculations, i.e transforms, joint space
         and inertia."""
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
@@ -155,8 +152,11 @@ class URDFparser(object):
         Sis = []
         prev_joint = None
         n_actuated = 0
+        spatial_inertia = None  # new
         i = 0
 
+        XT_prev = None  # new: not used
+        
         for item in chain:
             if item in self.robot_desc.joint_map:
                 joint = self.robot_desc.joint_map[item]
@@ -203,8 +203,7 @@ class URDFparser(object):
                         q[i])
                     if prev_joint == "fixed":
                         XJT = cs.mtimes(XJT, XT_prev)
-                    Si = cs.SX([
-                                joint.axis[0],
+                    Si = cs.SX([joint.axis[0],
                                 joint.axis[1],
                                 joint.axis[2],
                                 0,
@@ -255,6 +254,8 @@ class URDFparser(object):
         # Sis = []
         prev_joint = None
         n_actuated = 0
+        spatial_inertia = None
+        XT_prev = None
         i = 0
 
         for item in chain:
@@ -408,7 +409,6 @@ class URDFparser(object):
 
     def get_gravity_rnea(self, root, tip, gravity):
         """Returns the gravitational term as a casadi function."""
-
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
 
@@ -480,7 +480,8 @@ class URDFparser(object):
 
         for i in range(n_joints - 1, -1, -1):
             if i != 0:
-                Ic_composite[i - 1] = Ic[i - 1] + cs.mtimes(i_X_p[i].T, cs.mtimes(Ic_composite[i], i_X_p[i]))
+                Ic_composite[i - 1] = Ic[i - 1] + cs.mtimes(i_X_p[i].T, 
+                                            cs.mtimes(Ic_composite[i], i_X_p[i]))
 
         for i in range(0, n_joints):
             fh = cs.mtimes(Ic_composite[i], Si[i])
@@ -515,13 +516,14 @@ class URDFparser(object):
                     a.append(cs.SX([0., 0., 0., 0., 0., 0.]))
             else:
                 v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
-                a.append(cs.mtimes(i_X_p[i], a[i - 1]) + cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
+                a.append(cs.mtimes(i_X_p[i], a[i - 1]) + 
+                            cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
 
-            f.append(cs.mtimes(Ic[i], a[i]) + 
+            f.append(cs.mtimes(Ic[i], a[i]) +
                 cs.mtimes(plucker.force_cross_product(v[i]), cs.mtimes(Ic[i], v[i])))
 
         if f_ext is not None:
-            f = self._apply_external_forces(f_ext, f, i_X_0)
+            f = self._apply_external_forces(f_ext, f, i_X_0)  # FIXME correct? former i_X_0 instead of i_X_p
 
         for i in range(n_joints - 1, -1, -1):
             C[i] = cs.mtimes(Si[i].T, f[i])
@@ -532,7 +534,6 @@ class URDFparser(object):
 
     def get_coriolis_rnea(self, root, tip, f_ext=None):
         """Returns the Coriolis matrix as a casadi function."""
-
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
 
@@ -553,13 +554,15 @@ class URDFparser(object):
                 v.append(vJ)
                 a.append(cs.SX([0., 0., 0., 0., 0., 0.]))
             else:
-                v.append(cs.mtimes(i_X_p[i], v[i-1]) + vJ)
-                a.append(cs.mtimes(i_X_p[i], a[i-1]) + cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
+                v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
+                a.append(cs.mtimes(i_X_p[i], a[i - 1]) +
+                                cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
 
-            f.append(cs.mtimes(Ic[i], a[i]) + cs.mtimes(plucker.force_cross_product(v[i]), cs.mtimes(Ic[i], v[i])))
+            f.append(cs.mtimes(Ic[i], a[i]) + cs.mtimes(plucker.force_cross_product(v[i]),
+                                                            cs.mtimes(Ic[i], v[i])))
 
         if f_ext is not None:
-            f = self._apply_external_forces(f_ext, f, i_X_0)
+            f = self._apply_external_forces(f_ext, f, i_X_0)  # FIXME
 
         for i in range(n_joints - 1, -1, -1):
             tau[i] = cs.mtimes(Si[i].T, f[i])
@@ -665,7 +668,7 @@ class URDFparser(object):
                              [q_ddot], self.func_opts)
         return q_ddot
 
-    def get_jacobian(self, root, tip):  ## new
+    def get_jacobian(self, root, tip):  # new
         """Returns the geometric jacobian as a casadi function using the
         derivative method."""
 
@@ -695,7 +698,7 @@ class URDFparser(object):
 
     def get_forward_kinematics(self, root, tip):
         """Returns the forward kinematics as a casadi function."""
-        chain = self.robot_desc.get_chain(root, tip)
+        # chain = self.robot_desc.get_chain(root, tip)
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
         joint_list, actuated_names, upper, lower = self.get_joint_info(
