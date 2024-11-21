@@ -5,7 +5,14 @@ A module for generating the forward kinematics and dynamics of a robot from a UR
 This module is implemented in Python, and was intended to explore a CasADi approach to forward kinematics and rigid body dynamics algorithms based on URDFs. For a more real-time control applicable alternative, consider the [Pinocchio](https://github.com/stack-of-tasks/pinocchio) library.
 
 ## Differences to the original codebase
-- function to get inertia data added
+- new function to get inertia data only
+- add [patch](https://github.com/wly2014/urdf2casadi/tree/patch_jacobian) to get Jacobian
+- refactoring
+- update dependencies to newer versions
+
+## Caveats
+- maybe non-diagonal inertial values are not correctly handled
+- external forces are not handled correct (i_X_0 is missed in some function invocations)
   
 ## Installation
 With ROS:
