@@ -12,6 +12,7 @@ This module is implemented in Python, and was intended to explore a CasADi appro
 
 ## Caveats
 - maybe non-diagonal inertial values are not correctly handled
+- external forces are not handled correct (i_X_0 is missed in some function invocations)
   
 ## Installation
 With ROS:
