@@ -6,6 +6,7 @@ This module is implemented in Python, and was intended to explore a CasADi appro
 
 ## Differences to the original codebase
 - new function to get inertia data only
+- add friction model
 - add [patch](https://github.com/wly2014/urdf2casadi/tree/patch_jacobian) to get Jacobian
 - refactoring
 - update dependencies to newer versions
@@ -65,6 +66,7 @@ The results were published in "Robot Dynamics with URDF & CasADi" at ICCMA 2019.
 - [x] Forward kinematics of rotation with quaternion
 - [x] Dual Quaternions as alternative to SE(3) matrices
 - [x] Dynamics from links and their inertia tags
+- [x] Friction model
 - [ ] Denavit Hartenberg?
 - [x] Move numerical to a test folder
 - [x] Examples
