@@ -101,7 +101,7 @@ class URDFparser(object):
 
         return max_effort, max_velocity
 
-    def get_friction_matrices(self, root, tip):
+    def _get_friction(self, root, tip):
         """Using an URDF to extract joint frictions and dampings"""
         chain = self.robot_desc.get_chain(root, tip)
         if self.robot_desc is None:
@@ -114,7 +114,7 @@ class URDFparser(object):
             if item in self.robot_desc.joint_map:
                 joint = self.robot_desc.joint_map[item]
                 if joint.type in self.actuated_types:
-                    if joint.dynamis is None:
+                    if joint.dynamics is None:
                         friction += [0]
                         damping += [0]
                     else:
@@ -122,9 +122,9 @@ class URDFparser(object):
                         damping += [joint.dynamics.damping]
         friction = [0 if x is None else x for x in friction]
         damping = [0 if x is None else x for x in damping]
-        Fv = np.diag(friction)
-        Fd = np.diag(damping)
-        return Fv, Fd
+        return friction, damping
+        # Fv = np.diag(friction)
+        # Fd = np.diag(damping)
 
     def get_n_joints(self, root, tip):
         """Returns number of actuated joints."""
@@ -148,7 +148,7 @@ class URDFparser(object):
         chain = self.robot_desc.get_chain(root, tip)
         spatial_inertias = []
         # i_X_0 = []
-        i_X_p = []
+        i_X_p = []  # transformation from parent- to body-i-frame
         Sis = []
         prev_joint = None
         n_actuated = 0
@@ -196,6 +196,7 @@ class URDFparser(object):
                         spatial_inertias.append(spatial_inertia)
                     n_actuated += 1
 
+                    # transformation from child to parent
                     XJT = plucker.XJT_revolute(
                         joint.origin.xyz,
                         joint.origin.rpy,
@@ -231,7 +232,7 @@ class URDFparser(object):
                         inert.izz,
                         link.inertial.mass,
                         link.inertial.origin.xyz)
-
+                        # TODO link.inertial.origin.rpy also Drehung der inertia matrix wird nicht berücksichtigt?
                 if prev_joint == "fixed":
                     spatial_inertia = prev_inertia + cs.mtimes(
                         inertia_transform.T,
@@ -240,6 +241,7 @@ class URDFparser(object):
                 if link.name == tip:
                     spatial_inertias.append(spatial_inertia)
 
+        # i_X_p transformation from child to parent?
         return i_X_p, Sis, spatial_inertias
 
     def get_inertias(self, root, tip):
@@ -333,7 +335,7 @@ class URDFparser(object):
                         inert.izz,
                         link.inertial.mass,
                         link.inertial.origin.xyz)
-
+                        # TODO link.inertial.origin.rpy also Drehung der inertia matrix wird nicht berücksichtigt?
                 if prev_joint == "fixed":
                     spatial_inertia = prev_inertia + cs.mtimes(
                         inertia_transform.T,
@@ -344,12 +346,58 @@ class URDFparser(object):
 
         return spatial_inertias
 
+    def _apply_friction(self, Fv, Fd, f, Si, q_dot):
+        """
+        Internal function for applying viscous and coulbm friction forces in dynamics
+        algorithms calculations.
+
+        :param Fv: coulomb/static friction array [Nm] 
+        :param Fd: viscous friction array (damping) (proportional to angular velocity) [Nms/rad]
+        :param f: result force array 
+        :param Si: joints
+        :param q_dot: first derivative of the general coordinates in [rad]
+        """
+        # Fv = np.diag(friction) [Nm] static
+        # Fd = np.diag(damping) [Nms/rad] viscous
+        #
+        # Wandelbots Nova:
+        # wb::math::Vector Dynamic::calculateStaticFriction(const wb::math::Vector& jointVelocity) const {
+        #   wb::math::Vector fStatic = wb::math::Vector::Zero(getDof());
+        #   for (wb::math::Index i = 0; i < getDof(); ++i) {
+        #        const auto& link = links_[static_cast<size_t>(i)];
+        #       fStatic(i) = std::pow(link.engineRatio, 2) * link.staticFriction * wb::math::sign(jointVelocity(i));
+        #   }
+        #   return fStatic;
+        # };
+        
+        for i in range(0, len(f)):
+            # print("Si[i]=",Si[i])
+            f[i] += cs.mtimes(Si[i], cs.times(Fv[i], cs.sign(q_dot[i])))
+            # print("f=", f[i])
+        
+        # 
+        # wb::math::Vector Dynamic::calculateViscousFriction(const wb::math::Vector& jointVelocity) const {
+        #   wb::math::Vector fViscous = wb::math::Vector::Zero(getDof());
+        #   for (wb::math::Index i = 0; i < getDof(); ++i) {
+        #       const auto& link = links_[static_cast<size_t>(i)];
+        #       fViscous(i) = std::pow(link.engineRatio, 2) * link.viscousFriction * jointVelocity(i);
+        #   }
+        #   return fViscous;
+        # };
+        #
+        for i in range(0, len(f)):
+            f[i] += cs.mtimes(Si[i], cs.times(Fd[i], q_dot[i]))
+            # print("f=", f[i])
+            
+        # print("friction applyed!")
+        return f
+        
     def _apply_external_forces(self, external_f, f, i_X_p):
         """
         Internal function for applying external forces in dynamics
         algorithms calculations.
 
-        :param external_f: external force
+        :param external_f: external spatial force (given in global frame)
         :param f: result force array 
         """
         for i in range(0, len(f)):
@@ -357,7 +405,7 @@ class URDFparser(object):
         return f
 
     def get_inverse_dynamics_rnea(self, root, tip,
-                                  gravity=None, f_ext=None):
+                                  gravity=None, f_ext=None, friction=None):
         """Returns the inverse dynamics as a casadi function."""
         if self.robot_desc is None:
             raise ValueError('Robot description not loaded from urdf')
@@ -366,46 +414,77 @@ class URDFparser(object):
         q = cs.SX.sym("q", n_joints)
         q_dot = cs.SX.sym("q_dot", n_joints)
         q_ddot = cs.SX.sym("q_ddot", n_joints)
+        # trafo from child to parent, joint axes, spatial inertia
         i_X_p, Si, Ic = self._model_calculation(root, tip, q)
 
+        # spatial velocity, acceleration and force
         v = []
         a = []
         f = []
+        
         tau = cs.SX.zeros(n_joints)
 
-        for i in range(0, n_joints):
+        # forward path to propagate kinematic quantities (spatial velocities and
+        # accelerations of each body and netforces acting on the bodys)
+        # ai and vi are determined in the global frame
+        for i in range(0, n_joints):  # 0 ... n_joints-1
+            # constrained relative motion between parent- and child-body
             vJ = cs.mtimes(Si[i], q_dot[i])
             if i == 0:
-                v.append(vJ)
+                v.append(vJ)  # relative motion = body motion because there is no parent 
                 if gravity is not None:
+                    # uniform gravitational field --> a ist not the true accceleration of the body
                     ag = np.array([0.,
                                    0.,
                                    0.,
                                    gravity[0],
                                    gravity[1],
                                    gravity[2]])
-                    a.append(
-                        cs.mtimes(i_X_p[i], -ag) + cs.mtimes(Si[i], q_ddot[i]))
+                    a.append(  # -ag von child nach parent also in den Ursprung transformieren?
+                        cs.mtimes(i_X_p[i], -ag) + cs.mtimes(Si[i], q_ddot[i]))  # v0=0 --> only two terms
                 else:
                     a.append(cs.mtimes(Si[i], q_ddot[i]))
             else:
+                # i_X_p: trafo v[i-1] von parent to child i
                 v.append(cs.mtimes(i_X_p[i], v[i - 1]) + vJ)
                 a.append(
                     cs.mtimes(i_X_p[i], a[i - 1])
                     + cs.mtimes(Si[i], q_ddot[i])
                     + cs.mtimes(plucker.motion_cross_product(v[i]), vJ))
 
+            # net forces acting on the bodys as function of ai and vi
+            # determined in the global frame f = f_i_B
             f.append(
                 cs.mtimes(Ic[i], a[i])
                 + cs.mtimes(
                     plucker.force_cross_product(v[i]),
                     cs.mtimes(Ic[i], v[i])))
 
+        # i_X_p von parent to child trafo
+        # f (in body frame) = f_i_B  (in body-frame)- f_ext (in global frame)
         if f_ext is not None:
             f = self._apply_external_forces(f_ext, f, i_X_p)
 
-        for i in range(n_joints - 1, -1, -1):
-            tau[i] = cs.mtimes(Si[i].T, f[i])
+        # vielleicht besser in die inertia matrix integrieren wie bei Wandelbots Nova
+        # TODO
+        # if actuator_inertia is not None:
+        #    if (gear_ratio is None):
+        #        # array with length of n_joints, filled with 1-values
+        #        gear_ratio = cs.SXMatrix.ones(n_joints)
+        #    f = self._apply_actuator_inertia(gear_ratio, actuator_inertia, f, Si, q_ddot)
+        
+        if friction is not None:
+            # fStatic(i) = std::pow(link.engineRatio, 2) * link.staticFriction * wb::math::sign(jointVelocity(i));
+            # fViscous(i) = std::pow(link.engineRatio, 2) * link.viscousFriction * jointVelocity(i);
+            # TODO engine_ratio noch dran mulitiplizieren
+            Fv, Fd = self._get_friction(root, tip)
+            f = self._apply_friction(Fv, Fd, f, Si, q_dot)
+        
+        # backward path to determine joint forces transmitted across the joints
+        # if working with force plate: forward calculation instead needed here
+        for i in range(n_joints - 1, -1, -1):  # n_joints-1, ... 0
+            tau[i] = cs.mtimes(Si[i].T, f[i])  # force across the joint from child body
+            # f-joint-zum-parent im body-frame = f-parent-body 
             if i != 0:
                 f[i - 1] = f[i - 1] + cs.mtimes(i_X_p[i].T, f[i])
 
